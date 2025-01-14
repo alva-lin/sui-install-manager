@@ -56,6 +56,11 @@ sudo bash sui_manager.sh list
 sudo bash sui_manager.sh clean
 ```
 
+### 更新脚本
+
+1. 如果是通过 git clone 安装的,直接用 git pull 更新
+2. 如果是直接下载的脚本,可以重新下载最新版本覆盖
+
 ## 贡献指南
 
 欢迎提交 Issue 和 Pull Request！

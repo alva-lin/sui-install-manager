@@ -364,10 +364,40 @@ function install_sui() {
   local tmp_dir
   tmp_dir=$(download_and_extract "$download_url" "$file_name")
 
-  # 安装流程
+  # 验证下载和解压结果
+  if [[ ! -d "$tmp_dir" ]] || [[ ! -f "$tmp_dir/sui" ]]; then
+    echo "错误: 下载或解压失败"
+    rm -rf "$tmp_dir"
+    exit 1
+  fi
+
+  # 准备备份目录
+  local backup_name="sui-${tag_name}-${platform}-${arch}"
+  local backup_path="${SUI_BACKUP_DIR}/${backup_name}"
+
+  # 如果已经存在相同版本的备份，先删除
+  if [[ -d "$backup_path" ]]; then
+    echo "发现同版本备份，正在删除..."
+    rm -rf "$backup_path"
+  fi
+
+  # 创建新的备份目录
+  mkdir -p "$backup_path"
+
+  # 保存到备份目录
+  echo "保存到备份目录: ${backup_path}"
+  cp -f "$tmp_dir"/* "$backup_path/" || {
+    echo "错误: 无法复制文件到备份目录"
+    rm -rf "$tmp_dir"
+    exit 1
+  }
+
+  # 安装到目标目录
+  echo "安装到: ${SUI_INSTALL_DIR}"
   mkdir -p "${SUI_INSTALL_DIR}"
   cp -f "$tmp_dir"/* "$SUI_INSTALL_DIR/" || {
     echo "错误: 安装失败"
+    rm -rf "$tmp_dir"
     exit 1
   }
   rm -rf "$tmp_dir"
