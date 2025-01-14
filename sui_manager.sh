@@ -71,7 +71,7 @@ function usage() {
   echo "  update         更新 sui"
   echo "  uninstall      卸载 sui"
   echo "  switch         切换到已备份的版本"
-  echo "  list          显示当前版本和可用的备份版本"
+  echo "  list           显示当前版本和可用的备份版本"
   echo "  clean          清理旧的备份版本（每个环境保留最新版本）"
   echo ""
   echo "可选参数 (在 install/update 时生效):"
@@ -82,10 +82,10 @@ function usage() {
   echo "  --list                    列出最新 5 个版本 (与 --env 联动)"
   echo ""
   echo "示例:"
-  echo "  sudo bash $0 install --env testnet --version v1.40.1"
-  echo "  sudo bash $0 update  --env devnet"
-  echo "  sudo bash $0 uninstall"
-  echo "  sudo bash $0 clean"
+  echo "  sudo $0 install --env testnet --version v1.40.1"
+  echo "  sudo $0 update  --env devnet"
+  echo "  sudo $0 uninstall"
+  echo "  sudo $0 clean"
   echo ""
   exit 1
 }
@@ -228,24 +228,66 @@ function compose_download_url() {
 # 下载与解压
 ################################################################################
 function download_and_extract() {
-  local url="$1"
-  local install_dir="$2"
-  local file_name="$3"
+    local url="$1"
+    local file_name="$2"
 
-  echo "开始下载: ${url}"
-  # 先下载到临时目录
-  curl -L -o "/tmp/${file_name}" "$url"
-  if [[ $? -ne 0 ]]; then
-    echo "下载失败: $url"
-    exit 1
-  fi
+    # 使用 mktemp 创建唯一的临时目录
+    local tmp_dir
+    tmp_dir=$(mktemp -d -t sui-install.XXXXXX) || {
+        echo "错误: 无法创建临时目录"
+        exit 1
+    }
 
-  echo "下载成功, 开始解压到: ${install_dir}"
-  mkdir -p "$install_dir"
-  tar -xzf "/tmp/${file_name}" -C "$install_dir"
+    local tmp_file="${tmp_dir}/${file_name}"
 
-  # 下载完的临时文件可在需要时删除
-  rm -f "/tmp/${file_name}"
+    # 添加更多的 curl 选项来提高可靠性和下载体验
+    if ! curl -L \
+         --progress-bar \
+         --fail \
+         --show-error \
+         --location \
+         -o "$tmp_file" \
+         "$url"; then
+        echo "下载失败: $url"
+        rm -rf "$tmp_dir"
+        exit 1
+    fi
+
+    # 检查下载的文件是否存在且大小不为0
+    if [[ ! -s "$tmp_file" ]]; then
+        echo "错误: 下载的文件为空或不存在"
+        rm -rf "$tmp_dir"
+        exit 1
+    fi
+
+    # 创建临时解压目录
+    local extract_dir="${tmp_dir}"
+
+    # 解压到临时解压目录
+    if ! tar -xzf "$tmp_file" -C "$extract_dir" 2>&1; then
+        echo "解压失败"
+        echo "临时目录内容:"
+        ls -la "$tmp_dir"
+        rm -rf "$tmp_dir"
+        exit 1
+    fi
+
+    # 验证解压后的文件
+    if [[ ! -f "$extract_dir/sui" ]]; then
+        echo "错误: 解压后未找到 sui 可执行文件"
+        echo "目录内容:"
+        ls -la "$extract_dir"
+        echo "查找 sui 文件:"
+        find "$extract_dir" -name "sui" -type f
+        rm -rf "$tmp_dir"
+        exit 1
+    fi
+
+    # 清理下载的压缩文件
+    rm -f "$tmp_file"
+
+    # 返回临时目录路径
+    echo "$tmp_dir"
 }
 
 
@@ -253,18 +295,31 @@ function download_and_extract() {
 # 备份当前安装 (若存在)
 ################################################################################
 function backup_current_install() {
-  local backup_dir="$1"
-  local backup_name="$2"
+    local backup_dir="$1"
+    local backup_name="$2"
 
-  if [[ -d "$SUI_INSTALL_DIR" ]]; then
-    echo "当前检测到已安装版本，进行备份到: ${backup_dir}/${backup_name}"
-    mkdir -p "${backup_dir}/${backup_name}"
+    if [[ -d "$SUI_INSTALL_DIR" ]]; then
+        echo "当前检测到已安装版本，进行备份到: ${backup_dir}/${backup_name}"
+        mkdir -p "${backup_dir}/${backup_name}"
 
-    # 这里简单地直接复制整个目录；也可只备份可执行文件
-    cp -r "${SUI_INSTALL_DIR}/." "${backup_dir}/${backup_name}/"
+        # 只复制可执行文件，不复制 backup 目录和其他特殊文件
+        for file in "$SUI_INSTALL_DIR"/*; do
+            if [[ "$file" != "$SUI_INSTALL_DIR/backup" && \
+                  "$file" != "$SUI_INSTALL_DIR/.version_info" && \
+                  -f "$file" ]]; then
+                cp "$file" "${backup_dir}/${backup_name}/"
+                # 设置正确的所有者和权限
+                chown root:root "${backup_dir}/${backup_name}/$(basename "$file")"
+                chmod 755 "${backup_dir}/${backup_name}/$(basename "$file")"
+            fi
+        done
 
-    echo "备份完成."
-  fi
+        # 设置备份目录的权限
+        chown root:root "${backup_dir}/${backup_name}"
+        chmod 755 "${backup_dir}/${backup_name}"
+
+        echo "备份完成."
+    fi
 }
 
 
@@ -287,47 +342,86 @@ function create_symlinks() {
 # 安装流程
 ################################################################################
 function install_sui() {
-  echo "=== 开始安装 SUI ==="
-  local env="$USER_ENV"
-  local version="$USER_VERSION"
-  local platform="$USER_PLATFORM"
-  local arch="$USER_ARCH"
+    echo "=== 开始安装 SUI ==="
+    local env="$USER_ENV"
+    local version="$USER_VERSION"
+    local platform="$USER_PLATFORM"
+    local arch="$USER_ARCH"
 
-  # 如果用户没有指定版本，则取最新
-  if [[ -z "$version" ]]; then
-    echo "未指定版本号, 正在获取 ${env} 环境下最新版本..."
-    version="$(get_latest_version "$env")"
-    echo "使用的版本: $version"
-  fi
+    # 如果用户没有指定版本，则取最新
+    if [[ -z "$version" ]]; then
+        echo "未指定版本号, 正在获取 ${env} 环境下最新版本..."
+        version="$(get_latest_version "$env")"
+        echo "使用的版本: $version"
+    fi
 
-  # devnet / testnet / mainnet + 版本 => tag_name 形如 testnet-v1.40.1
-  local tag_name="$version"
-  # 若用户输入的版本里本来就包含了 testnet-，则直接用；否则可以简单拼接
-  if [[ "$version" != *"${env}-"* ]]; then
-    # 如果 version 里不包含环境前缀，就自己拼
-    tag_name="${env}-${version}"
-  fi
+    # 构建 tag_name
+    local tag_name="$version"
+    if [[ "$version" != *"${env}-"* ]]; then
+        tag_name="${env}-${version}"
+    fi
 
-  # 组装下载 URL
-  local download_url
-  download_url="$(compose_download_url "$tag_name" "$platform" "$arch")"
+    # 组装下载 URL 和文件名
+    local file_name="sui-${tag_name}-${platform}-${arch}.tgz"
+    local download_url="$(compose_download_url "$tag_name" "$platform" "$arch")"
 
-  # 备份
-  mkdir -p "${SUI_BACKUP_DIR}"
-  local backup_name="sui-${tag_name}-${platform}-${arch}"
-  backup_current_install "${SUI_BACKUP_DIR}" "${backup_name}"
+    echo "验证下载 URL:"
+    echo "tag_name: $tag_name"
+    echo "platform: $platform"
+    echo "arch: $arch"
+    echo "完整 URL: $download_url"
 
-  # 下载 & 解压
-  download_and_extract "$download_url" "$SUI_INSTALL_DIR" "sui-${tag_name}-${platform}-${arch}.tgz"
+    # 验证 URL 是否可访问
+    if ! curl --output /dev/null --silent --head --fail "$download_url"; then
+        echo "错误: URL 不可访问，请检查版本和平台信息是否正确"
+        echo "您可以在浏览器中访问以下地址验证:"
+        echo "https://github.com/MystenLabs/sui/releases/tag/$tag_name"
+        exit 1
+    fi
 
-  # 创建符号链接
-  create_symlinks
+    # 1. 下载并解压到临时目录
+    echo "开始下载并解压..."
+    local tmp_dir
+    tmp_dir=$(download_and_extract "$download_url" "$file_name")
+    # if [[ ! -d "$tmp_dir" ]] || [[ ! -f "$tmp_dir/sui" ]]; then
+    #     echo "错误: 下载或解压失败"
+    #     exit 1
+    # fi
 
-  # 保存版本信息
-  save_version_info "$env" "${version#*v}"  # 去掉版本号前面的 v
+    # 2. 准备备份目录
+    local backup_name="sui-${tag_name}-${platform}-${arch}"
+    local backup_path="${SUI_BACKUP_DIR}/${backup_name}"
+    mkdir -p "${backup_path}"
 
-  echo "SUI 安装完成, 版本: $tag_name"
-  get_current_version_info
+    # 3. 移动到备份目录
+    echo "保存到备份目录: ${backup_path}"
+    cp -f "$tmp_dir"/* "${backup_path}/" || {
+        echo "错误: 无法复制文件到备份目录"
+        exit 1
+    }
+
+    # 4. 移动到安装目录
+    echo "安装到: ${SUI_INSTALL_DIR}"
+    mkdir -p "${SUI_INSTALL_DIR}"
+    # 删除旧的可执行文件
+    rm -f "${SUI_INSTALL_DIR}"/sui* "${SUI_INSTALL_DIR}"/move*
+    # 复制新文件
+    cp -f "$tmp_dir"/* "$SUI_INSTALL_DIR/" || {
+        echo "错误: 无法复制文件到安装目录"
+        exit 1
+    }
+
+    # 所有复制都成功后，再清理临时目录
+    rm -rf "$tmp_dir"
+
+    # 5. 创建符号链接
+    create_symlinks
+
+    # 保存版本信息
+    save_version_info "$env" "${version#*v}"
+
+    echo "SUI 安装完成, 版本: $tag_name"
+    get_current_version_info
 }
 
 
@@ -406,46 +500,78 @@ function check_environment() {
 # 交互式引导安装
 ################################################################################
 function interactive_install() {
-  echo "=== SUI 安装引导 ==="
+    echo "=== SUI 安装引导 ==="
 
-  # 选择环境
-  echo "请选择环境:"
-  echo "1) testnet (默认/推荐)"
-  echo "2) devnet (更新最频繁)"
-  echo "3) mainnet (正式网络)"
-  read -p "请输入选择 [1-3] (默认: 1): " env_choice
-  case "$env_choice" in
-    2) USER_ENV="devnet" ;;
-    3) USER_ENV="mainnet" ;;
-    *) USER_ENV="testnet" ;;
-  esac
-  echo "已选择环境: $USER_ENV"
+    # 检查是否为初次安装
+    if [[ ! -d "$SUI_INSTALL_DIR" ]]; then
+        echo "检测到首次安装"
+        echo "请选择安装环境:"
+        echo "1) testnet (默认/推荐)"
+        echo "2) devnet (更新最频繁)"
+        echo "3) mainnet (正式网络)"
+        echo "4) 自定义版本"
+        read -p "请选择 [1-4] (默认: 1): " env_choice
 
-  # 显示最新版本
-  echo -e "\n获取最新版本信息..."
-  list_top_5_versions "$USER_ENV"
+        case "$env_choice" in
+            2) USER_ENV="devnet" ;;
+            3) USER_ENV="mainnet" ;;
+            4)
+                # 进入自定义版本流程
+                echo -e "\n请选择环境:"
+                echo "1) testnet"
+                echo "2) devnet"
+                echo "3) mainnet"
+                read -p "请选择 [1-3]: " custom_env
+                case "$custom_env" in
+                    2) USER_ENV="devnet" ;;
+                    3) USER_ENV="mainnet" ;;
+                    *) USER_ENV="testnet" ;;
+                esac
 
-  # 选择版本
-  read -p "请输入要安装的版本 (直接回车使用最新版本): " version_choice
-  if [[ -n "$version_choice" ]]; then
-    USER_VERSION="$version_choice"
-  fi
+                echo -e "\n获取可用版本..."
+                list_top_5_versions "$USER_ENV"
+                read -p "请输入要安装的版本 (例如: ${USER_ENV}-v1.40.1): " USER_VERSION
+                ;;
+            *) USER_ENV="testnet" ;;
+        esac
 
-  # 确认安装
-  echo -e "\n=== 安装确认 ==="
-  echo "环境: $USER_ENV"
-  echo "版本: ${USER_VERSION:-"最新版本"}"
-  echo "平台: $USER_PLATFORM"
-  echo "架构: $USER_ARCH"
+        # 如果不是自定义版本，则使用最新版本
+        if [[ "$env_choice" != "4" ]]; then
+            echo -e "\n正在获取 ${USER_ENV} 环境的最新版本..."
+            USER_VERSION=$(get_latest_version "$USER_ENV")
+            echo "将安装最新版本: $USER_VERSION"
+        fi
 
-  read -p "确认安装? (Y/n): " confirm
-  if [[ "$confirm" =~ ^[Nn] ]]; then
-    echo "已取消安装"
-    exit 0
-  fi
+    else
+        # 非初次安装，显示当前版本并提供完整选项
+        echo "当前版本信息:"
+        get_current_version_info
+        echo -e "\n请选择环境:"
+        echo "1) testnet (默认/推荐)"
+        echo "2) devnet (更新最频繁)"
+        echo "3) mainnet (正式网络)"
+        read -p "请选择 [1-3] (默认: 1): " env_choice
+        case "$env_choice" in
+            2) USER_ENV="devnet" ;;
+            3) USER_ENV="mainnet" ;;
+            *) USER_ENV="testnet" ;;
+        esac
 
-  # 执行安装
-  install_sui
+        echo -e "\n获取最新版本信息..."
+        local latest_version
+        latest_version=$(get_latest_version "$USER_ENV")
+        list_top_5_versions "$USER_ENV"
+
+        read -p "请输入要安装的版本 (直接回车使用最新版本: ${latest_version}): " version_choice
+        if [[ -n "$version_choice" ]]; then
+            USER_VERSION="$version_choice"
+        else
+            USER_VERSION="$latest_version"
+        fi
+    fi
+
+    # 执行安装
+    install_sui
 }
 
 ################################################################################
@@ -596,18 +722,38 @@ function switch_version() {
     cp "$backup_path"/sui* "$SUI_INSTALL_DIR/" 2>/dev/null || true
     cp "$backup_path"/move* "$SUI_INSTALL_DIR/" 2>/dev/null || true
 
-    # 提取环境和版本信息
+    # 提取环境和版本信息（修改这部分）
     local env=$(echo "$target_backup" | grep -oP '(?<=sui-)(mainnet|testnet|devnet)')
-    local version=$(echo "$target_backup" | grep -oP 'v[\d\.]+')
+    local version=$(echo "$target_backup" | grep -oP '(?<=-)(v[\d\.]+)(?=-)')
+    version="${version#v}"  # 去掉版本号前面的 v
 
     # 保存版本信息
     save_version_info "$env" "$version"
 
-    # 重新创建符号链接
-    create_symlinks
+    # 重新创建符号链接（确保文件存在）
+    if [[ -f "${SUI_INSTALL_DIR}/sui" ]]; then
+        rm -f /usr/local/bin/sui
+        ln -sf "${SUI_INSTALL_DIR}/sui" /usr/local/bin/sui
+        echo "已更新符号链接 /usr/local/bin/sui -> ${SUI_INSTALL_DIR}/sui"
+    else
+        echo "警告: 未找到 sui 可执行文件"
+    fi
 
     echo "版本切换完成"
     get_current_version_info
+
+    # 验证切换结果
+    if [[ -f "${SUI_INSTALL_DIR}/sui" ]]; then
+        echo "验证: sui 可执行文件已安装"
+        if [[ -L "/usr/local/bin/sui" ]]; then
+            echo "验证: 符号链接已创建"
+        else
+            echo "警告: 符号链接创建失败"
+        fi
+    else
+        echo "错误: 切换失败，未找到 sui 可执行文件"
+        return 1
+    fi
 }
 
 ################################################################################
@@ -682,22 +828,24 @@ function interactive_switch() {
 
             # 显示所选环境的可用版本
             echo -e "\n获取 ${target_env} 环境下的可用版本:"
+            local latest_version
+            latest_version=$(get_latest_version "$target_env")
             list_top_5_versions "$target_env"
-            echo ""
 
             # 选择版本
-            read -p "请输入要安装的版本 (格式如 ${target_env}-v1.40.1): " version_input
-            if [[ -n "$version_input" ]]; then
-                # 检查版本格式
-                if [[ ! "$version_input" =~ ^${target_env}-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-                    echo "版本格式不正确，应该类似: ${target_env}-v1.40.1"
-                    return 1
-                fi
-                switch_version "sui-${version_input}-${DEFAULT_PLATFORM}-${DEFAULT_ARCH}"
-            else
-                echo "未指定版本，退出"
+            read -p "请输入要安装的版本 (直接回车使用最新版本: ${latest_version}): " version_input
+            if [[ -z "$version_input" ]]; then
+                # 使用最新版本
+                version_input="$latest_version"
+                echo "将使用版本: $version_input"
+            fi
+
+            # 检查版本格式
+            if [[ ! "$version_input" =~ ^${target_env}-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                echo "版本格式不正确，应该类似: ${target_env}-v1.40.1"
                 return 1
             fi
+            switch_version "sui-${version_input}-${DEFAULT_PLATFORM}-${DEFAULT_ARCH}"
         else
             echo "无效的选择"
             return 1
