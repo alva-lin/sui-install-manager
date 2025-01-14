@@ -59,7 +59,6 @@ USER_PLATFORM=""
 USER_ARCH=""
 USER_LIST="false"
 
-
 ################################################################################
 # 帮助/用法说明
 ################################################################################
@@ -90,7 +89,6 @@ function usage() {
   exit 1
 }
 
-
 ################################################################################
 # 解析命令行参数
 ################################################################################
@@ -106,40 +104,40 @@ function parse_args() {
   # 解析后续选项
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --env)
-        USER_ENV="$2"
-        shift 2
-        ;;
-      --version)
-        USER_VERSION="$2"
-        shift 2
-        ;;
-      --platform)
-        USER_PLATFORM="$2"
-        shift 2
-        ;;
-      --arch)
-        USER_ARCH="$2"
-        shift 2
-        ;;
-      --list)
-        USER_LIST="true"
-        shift
-        ;;
-      *)
-        echo "未知选项: $1"
-        usage
-        ;;
+    --env)
+      USER_ENV="$2"
+      shift 2
+      ;;
+    --version)
+      USER_VERSION="$2"
+      shift 2
+      ;;
+    --platform)
+      USER_PLATFORM="$2"
+      shift 2
+      ;;
+    --arch)
+      USER_ARCH="$2"
+      shift 2
+      ;;
+    --list)
+      USER_LIST="true"
+      shift
+      ;;
+    *)
+      echo "未知选项: $1"
+      usage
+      ;;
     esac
   done
 
   # 对 ACTION 做基础校验
-  if [[ "${ACTION}" != "install" && \
-        "${ACTION}" != "update" && \
-        "${ACTION}" != "uninstall" && \
-        "${ACTION}" != "switch" && \
-        "${ACTION}" != "list" && \
-        "${ACTION}" != "clean" ]]; then
+  if [[ "${ACTION}" != "install" &&
+    "${ACTION}" != "update" &&
+    "${ACTION}" != "uninstall" &&
+    "${ACTION}" != "switch" &&
+    "${ACTION}" != "list" &&
+    "${ACTION}" != "clean" ]]; then
     echo "错误: 不支持的命令: ${ACTION}"
     usage
   fi
@@ -150,7 +148,6 @@ function parse_args() {
   [[ -z "$USER_ARCH" ]] && USER_ARCH="$DEFAULT_ARCH"
 }
 
-
 ################################################################################
 # 从 GitHub API 获取 Release 信息
 ################################################################################
@@ -160,14 +157,14 @@ function fetch_releases_by_env() {
   # 判断是否安装 jq, 根据情况使用不同的方式提取 tag_name
   if command -v jq >/dev/null 2>&1; then
     # 有 jq 的情况
-    curl -s "${GITHUB_API_URL}" \
-      | jq -r '.[].tag_name' \
-      | grep -E "^${env}-"
+    curl -s "${GITHUB_API_URL}" |
+      jq -r '.[].tag_name' |
+      grep -E "^${env}-"
   else
     # 没有 jq，简单用 grep 解析
-    curl -s "${GITHUB_API_URL}" \
-      | grep -oP '"tag_name":\s*"\K[^"]+' \
-      | grep -E "^${env}-"
+    curl -s "${GITHUB_API_URL}" |
+      grep -oP '"tag_name":\s*"\K[^"]+' |
+      grep -E "^${env}-"
   fi
 }
 
@@ -228,100 +225,98 @@ function compose_download_url() {
 # 下载与解压
 ################################################################################
 function download_and_extract() {
-    local url="$1"
-    local file_name="$2"
+  local url="$1"
+  local file_name="$2"
 
-    # 使用 mktemp 创建唯一的临时目录
-    local tmp_dir
-    tmp_dir=$(mktemp -d -t sui-install.XXXXXX) || {
-        echo "错误: 无法创建临时目录"
-        exit 1
-    }
+  # 使用 mktemp 创建唯一的临时目录
+  local tmp_dir
+  tmp_dir=$(mktemp -d -t sui-install.XXXXXX) || {
+    echo "错误: 无法创建临时目录"
+    exit 1
+  }
 
-    local tmp_file="${tmp_dir}/${file_name}"
+  local tmp_file="${tmp_dir}/${file_name}"
 
-    # 添加更多的 curl 选项来提高可靠性和下载体验
-    if ! curl -L \
-         --progress-bar \
-         --fail \
-         --show-error \
-         --location \
-         -o "$tmp_file" \
-         "$url"; then
-        echo "下载失败: $url"
-        rm -rf "$tmp_dir"
-        exit 1
-    fi
+  # 添加更多的 curl 选项来提高可靠性和下载体验
+  if ! curl -L \
+    --progress-bar \
+    --fail \
+    --show-error \
+    --location \
+    -o "$tmp_file" \
+    "$url"; then
+    echo "下载失败: $url"
+    rm -rf "$tmp_dir"
+    exit 1
+  fi
 
-    # 检查下载的文件是否存在且大小不为0
-    if [[ ! -s "$tmp_file" ]]; then
-        echo "错误: 下载的文件为空或不存在"
-        rm -rf "$tmp_dir"
-        exit 1
-    fi
+  # 检查下载的文件是否存在且大小不为0
+  if [[ ! -s "$tmp_file" ]]; then
+    echo "错误: 下载的文件为空或不存在"
+    rm -rf "$tmp_dir"
+    exit 1
+  fi
 
-    # 创建临时解压目录
-    local extract_dir="${tmp_dir}"
+  # 创建临时解压目录
+  local extract_dir="${tmp_dir}"
 
-    # 解压到临时解压目录
-    if ! tar -xzf "$tmp_file" -C "$extract_dir" 2>&1; then
-        echo "解压失败"
-        echo "临时目录内容:"
-        ls -la "$tmp_dir"
-        rm -rf "$tmp_dir"
-        exit 1
-    fi
+  # 解压到临时解压目录
+  if ! tar -xzf "$tmp_file" -C "$extract_dir" 2>&1; then
+    echo "解压失败"
+    echo "临时目录内容:"
+    ls -la "$tmp_dir"
+    rm -rf "$tmp_dir"
+    exit 1
+  fi
 
-    # 验证解压后的文件
-    if [[ ! -f "$extract_dir/sui" ]]; then
-        echo "错误: 解压后未找到 sui 可执行文件"
-        echo "目录内容:"
-        ls -la "$extract_dir"
-        echo "查找 sui 文件:"
-        find "$extract_dir" -name "sui" -type f
-        rm -rf "$tmp_dir"
-        exit 1
-    fi
+  # 验证解压后的文件
+  if [[ ! -f "$extract_dir/sui" ]]; then
+    echo "错误: 解压后未找到 sui 可执行文件"
+    echo "目录内容:"
+    ls -la "$extract_dir"
+    echo "查找 sui 文件:"
+    find "$extract_dir" -name "sui" -type f
+    rm -rf "$tmp_dir"
+    exit 1
+  fi
 
-    # 清理下载的压缩文件
-    rm -f "$tmp_file"
+  # 清理下载的压缩文件
+  rm -f "$tmp_file"
 
-    # 返回临时目录路径
-    echo "$tmp_dir"
+  # 返回临时目录路径
+  echo "$tmp_dir"
 }
-
 
 ################################################################################
 # 备份当前安装 (若存在)
 ################################################################################
 function backup_current_install() {
-    local backup_dir="$1"
-    local backup_name="$2"
+  local backup_dir="$1"
+  local backup_name="$2"
 
-    if [[ -d "$SUI_INSTALL_DIR" ]]; then
-        echo "当前检测到已安装版本，进行备份到: ${backup_dir}/${backup_name}"
-        mkdir -p "${backup_dir}/${backup_name}"
+  if [[ -d "$SUI_INSTALL_DIR" ]]; then
+    echo "当前检测到已安装版本，进行备份到: ${backup_dir}/${backup_name}"
+    mkdir -p "${backup_dir}/${backup_name}"
 
-        # 只复制可执行文件，不复制 backup 目录和其他特殊文件
-        for file in "$SUI_INSTALL_DIR"/*; do
-            if [[ "$file" != "$SUI_INSTALL_DIR/backup" && \
-                  "$file" != "$SUI_INSTALL_DIR/.version_info" && \
-                  -f "$file" ]]; then
-                cp "$file" "${backup_dir}/${backup_name}/"
-                # 设置正确的所有者和权限
-                chown root:root "${backup_dir}/${backup_name}/$(basename "$file")"
-                chmod 755 "${backup_dir}/${backup_name}/$(basename "$file")"
-            fi
-        done
+    # 只复制可执行文件，不复制 backup 目录和其他特殊文件
+    for file in "$SUI_INSTALL_DIR"/*; do
+      if [[ "$file" != "$SUI_INSTALL_DIR/backup" &&
+        "$file" != "$SUI_INSTALL_DIR/.version_info" &&
+        -f "$file" ]]; then
+        cp "$file" "${backup_dir}/${backup_name}/"
+        # 设置正确的所有者和权限
+        chown root:root "${backup_dir}/${backup_name}/$(basename "$file")"
+        chmod 755 "${backup_dir}/${backup_name}/$(basename "$file")"
+      fi
+    done
 
-        # 设置备份目录的权限
-        chown root:root "${backup_dir}/${backup_name}"
-        chmod 755 "${backup_dir}/${backup_name}"
+    # 设置备份目录的权限
+    chown root:root "${backup_dir}/${backup_name}"
+    chmod 755 "${backup_dir}/${backup_name}"
 
-        echo "备份完成."
-    fi
+    echo "备份完成."
+  fi
 }
-
 
 ################################################################################
 # 创建/更新 符号链接 (示例: 把 /opt/sui 下的 sui 二进制链接到 /usr/local/bin/sui)
@@ -337,128 +332,70 @@ function create_symlinks() {
   # ln -sf "${SUI_INSTALL_DIR}/sui-tool" /usr/local/bin/sui-tool
 }
 
-
 ################################################################################
 # 安装流程
 ################################################################################
 function install_sui() {
-    echo "=== 开始安装 SUI ==="
-    local env="$USER_ENV"
-    local version="$USER_VERSION"
-    local platform="$USER_PLATFORM"
-    local arch="$USER_ARCH"
+  echo "=== 安装 SUI ==="
+  local env="$USER_ENV"
+  local version="$USER_VERSION"
+  local platform="$USER_PLATFORM"
+  local arch="$USER_ARCH"
 
-    # 如果用户没有指定版本，则取最新
-    if [[ -z "$version" ]]; then
-        echo "未指定版本号, 正在获取 ${env} 环境下最新版本..."
-        version="$(get_latest_version "$env")"
-        echo "使用的版本: $version"
-    fi
+  # 如果用户没有指定版本，则取最新
+  if [[ -z "$version" ]]; then
+    echo "未指定版本号, 正在获取 ${env} 环境下最新版本..."
+    version="$(get_latest_version "$env")"
+    echo "使用的版本: $version"
+  fi
 
-    # 构建 tag_name
-    local tag_name="$version"
-    if [[ "$version" != *"${env}-"* ]]; then
-        tag_name="${env}-${version}"
-    fi
+  # 构建 tag_name
+  local tag_name="$version"
+  if [[ "$version" != *"${env}-"* ]]; then
+    tag_name="${env}-${version}"
+  fi
 
-    # 组装下载 URL 和文件名
-    local file_name="sui-${tag_name}-${platform}-${arch}.tgz"
-    local download_url="$(compose_download_url "$tag_name" "$platform" "$arch")"
+  # 组装下载 URL 和文件名
+  local file_name="sui-${tag_name}-${platform}-${arch}.tgz"
+  local download_url="$(compose_download_url "$tag_name" "$platform" "$arch")"
 
-    echo "验证下载 URL:"
-    echo "tag_name: $tag_name"
-    echo "platform: $platform"
-    echo "arch: $arch"
-    echo "完整 URL: $download_url"
+  # 下载并解压
+  echo "正在下载并安装..."
+  local tmp_dir
+  tmp_dir=$(download_and_extract "$download_url" "$file_name")
 
-    # 验证 URL 是否可访问
-    if ! curl --output /dev/null --silent --head --fail "$download_url"; then
-        echo "错误: URL 不可访问，请检查版本和平台信息是否正确"
-        echo "您可以在浏览器中访问以下地址验证:"
-        echo "https://github.com/MystenLabs/sui/releases/tag/$tag_name"
-        exit 1
-    fi
+  # 安装流程
+  mkdir -p "${SUI_INSTALL_DIR}"
+  cp -f "$tmp_dir"/* "$SUI_INSTALL_DIR/" || {
+    echo "错误: 安装失败"
+    exit 1
+  }
+  rm -rf "$tmp_dir"
 
-    # 1. 下载并解压到临时目录
-    echo "开始下载并解压..."
-    local tmp_dir
-    tmp_dir=$(download_and_extract "$download_url" "$file_name")
-    # if [[ ! -d "$tmp_dir" ]] || [[ ! -f "$tmp_dir/sui" ]]; then
-    #     echo "错误: 下载或解压失败"
-    #     exit 1
-    # fi
+  create_symlinks
+  save_version_info "$env" "${version#*v}"
 
-    # 2. 准备备份目录
-    local backup_name="sui-${tag_name}-${platform}-${arch}"
-    local backup_path="${SUI_BACKUP_DIR}/${backup_name}"
-    mkdir -p "${backup_path}"
-
-    # 3. 移动到备份目录
-    echo "保存到备份目录: ${backup_path}"
-    cp -f "$tmp_dir"/* "${backup_path}/" || {
-        echo "错误: 无法复制文件到备份目录"
-        exit 1
-    }
-
-    # 4. 移动到安装目录
-    echo "安装到: ${SUI_INSTALL_DIR}"
-    mkdir -p "${SUI_INSTALL_DIR}"
-    # 删除旧的可执行文件
-    rm -f "${SUI_INSTALL_DIR}"/sui* "${SUI_INSTALL_DIR}"/move*
-    # 复制新文件
-    cp -f "$tmp_dir"/* "$SUI_INSTALL_DIR/" || {
-        echo "错误: 无法复制文件到安装目录"
-        exit 1
-    }
-
-    # 所有复制都成功后，再清理临时目录
-    rm -rf "$tmp_dir"
-
-    # 5. 创建符号链接
-    create_symlinks
-
-    # 保存版本信息
-    save_version_info "$env" "${version#*v}"
-
-    echo "SUI 安装完成, 版本: $tag_name"
-    get_current_version_info
+  echo "✓ 安装完成"
+  get_current_version_info
 }
-
 
 ################################################################################
 # 更新流程
 ################################################################################
 function update_sui() {
-  echo "=== 开始更新 SUI ==="
-  # 跟安装共用函数即可
+  echo "=== 更新 SUI ==="
   install_sui
-  echo "=== 更新完成 ==="
 }
-
 
 ################################################################################
 # 卸载流程
 ################################################################################
 function uninstall_sui() {
-  echo "=== 开始卸载 SUI ==="
-
-  # 删除安装目录
-  if [[ -d "$SUI_INSTALL_DIR" ]]; then
-    rm -rf "$SUI_INSTALL_DIR"
-    echo "已删除安装目录: $SUI_INSTALL_DIR"
-  else
-    echo "未发现 $SUI_INSTALL_DIR, 无需删除."
-  fi
-
-  # 删除符号链接 (示例: /usr/local/bin/sui)
-  if [[ -L "/usr/local/bin/sui" ]]; then
-    rm -f "/usr/local/bin/sui"
-    echo "已删除符号链接 /usr/local/bin/sui"
-  fi
-
-  echo "=== SUI 卸载完成 ==="
+  echo "=== 卸载 SUI ==="
+  rm -rf "$SUI_INSTALL_DIR"
+  rm -f "/usr/local/bin/sui"
+  echo "✓ 卸载完成"
 }
-
 
 ################################################################################
 # 检查脚本运行环境和依赖
@@ -466,7 +403,7 @@ function uninstall_sui() {
 function check_environment() {
   # 检查是否以 root 权限运行
   if [[ $EUID -ne 0 ]]; then
-    echo "错误: 此脚本需要 root 权限运行"
+    echo "错误: 需要 root 权限"
     echo "请使用: sudo $0 $*"
     exit 1
   fi
@@ -481,97 +418,95 @@ function check_environment() {
     fi
   done
 
-  # 检查 jq（可选但推荐）
+  # 检查并自动安装 jq
   if ! command -v jq >/dev/null 2>&1; then
-    echo "警告: 未安装 jq，这会影响 JSON 解析效率"
-    echo "建议安装: sudo apt-get install jq"
-    echo "继续使用备用解析方式..."
-  fi
-
-  # 检查目录权限
-  if [[ ! -w "/opt" ]]; then
-    echo "错误: 没有 /opt 目录的写入权限"
-    exit 1
+    echo "正在安装 jq..."
+    if command -v apt-get >/dev/null 2>&1; then
+      apt-get update -qq && apt-get install -y jq >/dev/null 2>&1
+    elif command -v yum >/dev/null 2>&1; then
+      yum install -y jq >/dev/null 2>&1
+    elif command -v brew >/dev/null 2>&1; then
+      brew install jq >/dev/null 2>&1
+    fi
   fi
 }
-
 
 ################################################################################
 # 交互式引导安装
 ################################################################################
 function interactive_install() {
-    echo "=== SUI 安装引导 ==="
+  echo "=== SUI 安装引导 ==="
 
-    # 检查是否为初次安装
-    if [[ ! -d "$SUI_INSTALL_DIR" ]]; then
-        echo "检测到首次安装"
-        echo "请选择安装环境:"
-        echo "1) testnet (默认/推荐)"
-        echo "2) devnet (更新最频繁)"
-        echo "3) mainnet (正式网络)"
-        echo "4) 自定义版本"
-        read -p "请选择 [1-4] (默认: 1): " env_choice
+  # 检查是否为初次安装
+  if [[ ! -d "$SUI_INSTALL_DIR" ]]; then
+    echo "检测到首次安装"
+    echo "请选择安装环境:"
+    echo "1) testnet (默认/推荐)"
+    echo "2) devnet (更新最频繁)"
+    echo "3) mainnet (正式网络)"
+    echo "4) 自定义版本"
+    read -p "请选择 [1-4] (默认: 1): " env_choice
 
-        case "$env_choice" in
-            2) USER_ENV="devnet" ;;
-            3) USER_ENV="mainnet" ;;
-            4)
-                # 进入自定义版本流程
-                echo -e "\n请选择环境:"
-                echo "1) testnet"
-                echo "2) devnet"
-                echo "3) mainnet"
-                read -p "请选择 [1-3]: " custom_env
-                case "$custom_env" in
-                    2) USER_ENV="devnet" ;;
-                    3) USER_ENV="mainnet" ;;
-                    *) USER_ENV="testnet" ;;
-                esac
+    case "$env_choice" in
+    2) USER_ENV="devnet" ;;
+    3) USER_ENV="mainnet" ;;
+    4)
+      # 进入自定义版本流程
+      echo -e "\n请选择环境:"
+      echo "1) testnet"
+      echo "2) devnet"
+      echo "3) mainnet"
+      read -p "请选择 [1-3]: " custom_env
+      case "$custom_env" in
+      2) USER_ENV="devnet" ;;
+      3) USER_ENV="mainnet" ;;
+      *) USER_ENV="testnet" ;;
+      esac
 
-                echo -e "\n获取可用版本..."
-                list_top_5_versions "$USER_ENV"
-                read -p "请输入要安装的版本 (例如: ${USER_ENV}-v1.40.1): " USER_VERSION
-                ;;
-            *) USER_ENV="testnet" ;;
-        esac
+      echo -e "\n获取可用版本..."
+      list_top_5_versions "$USER_ENV"
+      read -p "请输入要安装的版本 (例如: ${USER_ENV}-v1.40.1): " USER_VERSION
+      ;;
+    *) USER_ENV="testnet" ;;
+    esac
 
-        # 如果不是自定义版本，则使用最新版本
-        if [[ "$env_choice" != "4" ]]; then
-            echo -e "\n正在获取 ${USER_ENV} 环境的最新版本..."
-            USER_VERSION=$(get_latest_version "$USER_ENV")
-            echo "将安装最新版本: $USER_VERSION"
-        fi
-
-    else
-        # 非初次安装，显示当前版本并提供完整选项
-        echo "当前版本信息:"
-        get_current_version_info
-        echo -e "\n请选择环境:"
-        echo "1) testnet (默认/推荐)"
-        echo "2) devnet (更新最频繁)"
-        echo "3) mainnet (正式网络)"
-        read -p "请选择 [1-3] (默认: 1): " env_choice
-        case "$env_choice" in
-            2) USER_ENV="devnet" ;;
-            3) USER_ENV="mainnet" ;;
-            *) USER_ENV="testnet" ;;
-        esac
-
-        echo -e "\n获取最新版本信息..."
-        local latest_version
-        latest_version=$(get_latest_version "$USER_ENV")
-        list_top_5_versions "$USER_ENV"
-
-        read -p "请输入要安装的版本 (直接回车使用最新版本: ${latest_version}): " version_choice
-        if [[ -n "$version_choice" ]]; then
-            USER_VERSION="$version_choice"
-        else
-            USER_VERSION="$latest_version"
-        fi
+    # 如果不是自定义版本，则使用最新版本
+    if [[ "$env_choice" != "4" ]]; then
+      echo -e "\n正在获取 ${USER_ENV} 环境的最新版本..."
+      USER_VERSION=$(get_latest_version "$USER_ENV")
+      echo "将安装最新版本: $USER_VERSION"
     fi
 
-    # 执行安装
-    install_sui
+  else
+    # 非初次安装，显示当前版本并提供完整选项
+    echo "当前版本信息:"
+    get_current_version_info
+    echo -e "\n请选择环境:"
+    echo "1) testnet (默认/推荐)"
+    echo "2) devnet (更新最频繁)"
+    echo "3) mainnet (正式网络)"
+    read -p "请选择 [1-3] (默认: 1): " env_choice
+    case "$env_choice" in
+    2) USER_ENV="devnet" ;;
+    3) USER_ENV="mainnet" ;;
+    *) USER_ENV="testnet" ;;
+    esac
+
+    echo -e "\n获取最新版本信息..."
+    local latest_version
+    latest_version=$(get_latest_version "$USER_ENV")
+    list_top_5_versions "$USER_ENV"
+
+    read -p "请输入要安装的版本 (直接回车使用最新版本: ${latest_version}): " version_choice
+    if [[ -n "$version_choice" ]]; then
+      USER_VERSION="$version_choice"
+    else
+      USER_VERSION="$latest_version"
+    fi
+  fi
+
+  # 执行安装
+  install_sui
 }
 
 ################################################################################
@@ -634,407 +569,404 @@ function interactive_uninstall() {
 # 版本信息记录与读取
 ################################################################################
 function save_version_info() {
-    local env="$1"
-    local version="$2"
-    local info_file="${SUI_INSTALL_DIR}/.version_info"
+  local env="$1"
+  local version="$2"
+  local info_file="${SUI_INSTALL_DIR}/.version_info"
 
-    echo "environment=${env}" > "$info_file"
-    echo "version=${version}" >> "$info_file"
+  echo "environment=${env}" >"$info_file"
+  echo "version=${version}" >>"$info_file"
 }
 
 function get_current_version_info() {
-    local info_file="${SUI_INSTALL_DIR}/.version_info"
-    if [[ -f "$info_file" ]]; then
-        source "$info_file"
-        echo "当前环境: ${environment}"
-        echo "当前版本: ${version}"
-    else
-        echo "未找到版本信息"
-    fi
+  local info_file="${SUI_INSTALL_DIR}/.version_info"
+  if [[ -f "$info_file" ]]; then
+    source "$info_file"
+    echo "当前版本: sui-${environment}-${version}"
+  else
+    echo "未找到版本信息"
+  fi
 }
 
 ################################################################################
 # 列出所有可用的备份
 ################################################################################
 function list_backups() {
-    echo "=== 可用的备份版本 ==="
-    if [[ ! -d "$SUI_BACKUP_DIR" ]]; then
-        echo "未找到任何备份"
-        return
-    fi
+  echo "=== 可用的备份版本 ==="
+  if [[ ! -d "$SUI_BACKUP_DIR" ]]; then
+    echo "未找到任何备份"
+    return
+  fi
 
-    # 列出所有备份目录并提取版本信息
-    local i=1
-    while IFS= read -r backup_dir; do
-        local backup_name=$(basename "$backup_dir")
-        echo "$i) $backup_name"
-        ((i++))
-    done < <(find "$SUI_BACKUP_DIR" -maxdepth 1 -mindepth 1 -type d | sort -r)
+  # 列出所有备份目录并提取版本信息
+  local i=1
+  while IFS= read -r backup_dir; do
+    local backup_name=$(basename "$backup_dir")
+    echo "$i) $backup_name"
+    ((i++))
+  done < <(find "$SUI_BACKUP_DIR" -maxdepth 1 -mindepth 1 -type d | sort -r)
 }
 
 ################################################################################
 # 切换到指定的备份版本
 ################################################################################
 function switch_version() {
-    local target_backup="$1"
-    local backup_path="${SUI_BACKUP_DIR}/${target_backup}"
+  local target_backup="$1"
+  local backup_path="${SUI_BACKUP_DIR}/${target_backup}"
 
-    if [[ ! -d "$backup_path" ]]; then
-        echo "未找到备份: ${target_backup}"
+  if [[ ! -d "$backup_path" ]]; then
+    echo "未找到备份: ${target_backup}"
 
-        # 从备份名称中提取环境和版本信息
-        local env=$(echo "$target_backup" | grep -oP '(?<=sui-)(mainnet|testnet|devnet)')
-        local version=$(echo "$target_backup" | grep -oP '(?<=-)(v[\d\.]+)(?=-)')
-
-        if [[ -n "$env" && -n "$version" ]]; then
-            echo "是否要下载并安装此版本？"
-            echo "环境: $env"
-            echo "版本: $version"
-            read -p "确认下载并安装? (Y/n): " confirm
-            if [[ ! "$confirm" =~ ^[Nn] ]]; then
-                # 设置全局变量供 install_sui 使用
-                USER_ENV="$env"
-                USER_VERSION="$version"
-                install_sui
-                return $?
-            else
-                echo "已取消安装"
-                return 1
-            fi
-        else
-            echo "无法从备份名称中提取有效的环境和版本信息"
-            return 1
-        fi
-    fi
-
-    echo "切换到版本: ${target_backup}"
-
-    # 删除当前的可执行文件
-    if [[ -d "$SUI_INSTALL_DIR" ]]; then
-        echo "删除当前版本的可执行文件..."
-        find "$SUI_INSTALL_DIR" -maxdepth 1 -type f \( -name "sui*" -o -name "move*" \) -delete
-    else
-        mkdir -p "$SUI_INSTALL_DIR"
-    fi
-
-    # 从备份复制新版本的文件
-    echo "复制新版本文件..."
-    cp "$backup_path"/sui* "$SUI_INSTALL_DIR/" 2>/dev/null || true
-    cp "$backup_path"/move* "$SUI_INSTALL_DIR/" 2>/dev/null || true
-
-    # 提取环境和版本信息（修改这部分）
+    # 从备份名称中提取环境和版本信息
     local env=$(echo "$target_backup" | grep -oP '(?<=sui-)(mainnet|testnet|devnet)')
     local version=$(echo "$target_backup" | grep -oP '(?<=-)(v[\d\.]+)(?=-)')
-    version="${version#v}"  # 去掉版本号前面的 v
 
-    # 保存版本信息
-    save_version_info "$env" "$version"
-
-    # 重新创建符号链接（确保文件存在）
-    if [[ -f "${SUI_INSTALL_DIR}/sui" ]]; then
-        rm -f /usr/local/bin/sui
-        ln -sf "${SUI_INSTALL_DIR}/sui" /usr/local/bin/sui
-        echo "已更新符号链接 /usr/local/bin/sui -> ${SUI_INSTALL_DIR}/sui"
-    else
-        echo "警告: 未找到 sui 可执行文件"
-    fi
-
-    echo "版本切换完成"
-    get_current_version_info
-
-    # 验证切换结果
-    if [[ -f "${SUI_INSTALL_DIR}/sui" ]]; then
-        echo "验证: sui 可执行文件已安装"
-        if [[ -L "/usr/local/bin/sui" ]]; then
-            echo "验证: 符号链接已创建"
-        else
-            echo "警告: 符号链接创建失败"
-        fi
-    else
-        echo "错误: 切换失败，未找到 sui 可执行文件"
+    if [[ -n "$env" && -n "$version" ]]; then
+      echo "是否要下载并安装此版本？"
+      echo "环境: $env"
+      echo "版本: $version"
+      read -p "确认下载并安装? (Y/n): " confirm
+      if [[ ! "$confirm" =~ ^[Nn] ]]; then
+        # 设置全局变量供 install_sui 使用
+        USER_ENV="$env"
+        USER_VERSION="$version"
+        install_sui
+        return $?
+      else
+        echo "已取消安装"
         return 1
+      fi
+    else
+      echo "无法从备份名称中提取有效的环境和版本信息"
+      return 1
     fi
+  fi
+
+  echo "切换到版本: ${target_backup}"
+
+  # 删除当前的可执行文件
+  if [[ -d "$SUI_INSTALL_DIR" ]]; then
+    echo "删除当前版本的可执行文件..."
+    find "$SUI_INSTALL_DIR" -maxdepth 1 -type f \( -name "sui*" -o -name "move*" \) -delete
+  else
+    mkdir -p "$SUI_INSTALL_DIR"
+  fi
+
+  # 从备份复制新版本的文件
+  echo "复制新版本文件..."
+  cp "$backup_path"/sui* "$SUI_INSTALL_DIR/" 2>/dev/null || true
+  cp "$backup_path"/move* "$SUI_INSTALL_DIR/" 2>/dev/null || true
+
+  # 提取环境和版本信息（修改这部分）
+  local env=$(echo "$target_backup" | grep -oP '(?<=sui-)(mainnet|testnet|devnet)')
+  local version=$(echo "$target_backup" | grep -oP '(?<=-)(v[\d\.]+)(?=-)')
+  version="${version#v}" # 去掉版本号前面的 v
+
+  # 保存版本信息
+  save_version_info "$env" "$version"
+
+  # 重新创建符号链接（确保文件存在）
+  if [[ -f "${SUI_INSTALL_DIR}/sui" ]]; then
+    rm -f /usr/local/bin/sui
+    ln -sf "${SUI_INSTALL_DIR}/sui" /usr/local/bin/sui
+    echo "已更新符号链接 /usr/local/bin/sui -> ${SUI_INSTALL_DIR}/sui"
+  else
+    echo "警告: 未找到 sui 可执行文件"
+  fi
+
+  echo "✓ 切换完成"
+  get_current_version_info
+
+  # 验证切换结果
+  if [[ -f "${SUI_INSTALL_DIR}/sui" ]]; then
+    echo "验证: sui 可执行文件已安装"
+    if [[ -L "/usr/local/bin/sui" ]]; then
+      echo "验证: 符号链接已创建"
+    else
+      echo "警告: 符号链接创建失败"
+    fi
+  else
+    echo "错误: 切换失败，未找到 sui 可执行文件"
+    return 1
+  fi
 }
 
 ################################################################################
 # 交互式版本切换
 ################################################################################
 function interactive_switch() {
-    echo "=== SUI 版本切换 ==="
+  echo "=== SUI 版本切换 ==="
 
-    # 显示当前版本
-    echo "当前版本信息:"
-    get_current_version_info
-    echo ""
+  # 显示当前版本
+  echo "当前版本信息:"
+  get_current_version_info
+  echo ""
 
-    # 显示可用的备份版本
-    list_backups
+  # 显示可用的备份版本
+  list_backups
 
-    # 获取备份列表
-    local backups=()
-    while IFS= read -r backup_dir; do
-        backups+=("$(basename "$backup_dir")")
-    done < <(find "$SUI_BACKUP_DIR" -maxdepth 1 -mindepth 1 -type d | sort -r)
+  # 获取备份列表
+  local backups=()
+  while IFS= read -r backup_dir; do
+    backups+=("$(basename "$backup_dir")")
+  done < <(find "$SUI_BACKUP_DIR" -maxdepth 1 -mindepth 1 -type d | sort -r)
 
-    echo ""
-    if [[ ${#backups[@]} -eq 0 ]]; then
-        echo "没有可用的备份版本"
-        echo "您可以安装新版本:"
-    else
-        echo "请选择操作:"
-        echo "1-${#backups[@]}) 切换到已有的备份版本"
-        echo "$((${#backups[@]}+1))) 安装新版本"
+  echo ""
+  if [[ ${#backups[@]} -eq 0 ]]; then
+    echo "没有可用的备份版本"
+    echo "您可以安装新版本:"
+  else
+    echo "请选择操作:"
+    echo "1-${#backups[@]}) 切换到已有的备份版本"
+    echo "$((${#backups[@]} + 1))) 安装新版本"
+  fi
+
+  if [[ ${#backups[@]} -eq 0 ]]; then
+    echo "1) 安装新版本"
+    echo "2) 退出"
+    read -p "请选择 [1-2]: " choice
+    if [[ "$choice" != "1" ]]; then
+      echo "已取消操作"
+      return 0
     fi
+    choice=1 # 为后续安装流程设置
+  else
+    read -p "请选择 [1-$((${#backups[@]} + 1))]: " choice
+  fi
 
-    if [[ ${#backups[@]} -eq 0 ]]; then
-        echo "1) 安装新版本"
-        echo "2) 退出"
-        read -p "请选择 [1-2]: " choice
-        if [[ "$choice" != "1" ]]; then
-            echo "已取消操作"
-            return 0
-        fi
-        choice=1  # 为后续安装流程设置
-    else
-        read -p "请选择 [1-$((${#backups[@]}+1))]: " choice
-    fi
+  if [[ "$choice" =~ ^[0-9]+$ ]]; then
+    if [[ "$choice" -le ${#backups[@]} ]]; then
+      # 切换到已有备份
+      local selected_backup="${backups[$((choice - 1))]}"
+      echo "将切换到版本: $selected_backup"
+      read -p "确认切换? (Y/n): " confirm
+      if [[ "$confirm" =~ ^[Nn] ]]; then
+        echo "已取消切换"
+        return 0
+      fi
+      switch_version "$selected_backup"
+    elif [[ "$choice" -eq $((${#backups[@]} + 1)) ]] || [[ ${#backups[@]} -eq 0 ]]; then
+      # 安装新版本
+      # 先选择环境
+      echo -e "\n请选择目标环境:"
+      echo "1) testnet (默认/推荐)"
+      echo "2) devnet (更新最频繁)"
+      echo "3) mainnet (正式网络)"
+      read -p "请输入选择 [1-3] (默认: 1): " env_choice
 
-    if [[ "$choice" =~ ^[0-9]+$ ]]; then
-        if [[ "$choice" -le ${#backups[@]} ]]; then
-            # 切换到已有备份
-            local selected_backup="${backups[$((choice-1))]}"
-            echo "将切换到版本: $selected_backup"
-            read -p "确认切换? (Y/n): " confirm
-            if [[ "$confirm" =~ ^[Nn] ]]; then
-                echo "已取消切换"
-                return 0
-            fi
-            switch_version "$selected_backup"
-        elif [[ "$choice" -eq $((${#backups[@]}+1)) ]] || [[ ${#backups[@]} -eq 0 ]]; then
-            # 安装新版本
-            # 先选择环境
-            echo -e "\n请选择目标环境:"
-            echo "1) testnet (默认/推荐)"
-            echo "2) devnet (更新最频繁)"
-            echo "3) mainnet (正式网络)"
-            read -p "请输入选择 [1-3] (默认: 1): " env_choice
+      local target_env
+      case "$env_choice" in
+      2) target_env="devnet" ;;
+      3) target_env="mainnet" ;;
+      *) target_env="testnet" ;;
+      esac
 
-            local target_env
-            case "$env_choice" in
-                2) target_env="devnet" ;;
-                3) target_env="mainnet" ;;
-                *) target_env="testnet" ;;
-            esac
+      # 显示所选环境的可用版本
+      echo -e "\n获取 ${target_env} 环境下的可用版本:"
+      local latest_version
+      latest_version=$(get_latest_version "$target_env")
+      list_top_5_versions "$target_env"
 
-            # 显示所选环境的可用版本
-            echo -e "\n获取 ${target_env} 环境下的可用版本:"
-            local latest_version
-            latest_version=$(get_latest_version "$target_env")
-            list_top_5_versions "$target_env"
+      # 选择版本
+      read -p "请输入要安装的版本 (直接回车使用最新版本: ${latest_version}): " version_input
+      if [[ -z "$version_input" ]]; then
+        # 使用最新版本
+        version_input="$latest_version"
+        echo "将使用版本: $version_input"
+      fi
 
-            # 选择版本
-            read -p "请输入要安装的版本 (直接回车使用最新版本: ${latest_version}): " version_input
-            if [[ -z "$version_input" ]]; then
-                # 使用最新版本
-                version_input="$latest_version"
-                echo "将使用版本: $version_input"
-            fi
-
-            # 检查版本格式
-            if [[ ! "$version_input" =~ ^${target_env}-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-                echo "版本格式不正确，应该类似: ${target_env}-v1.40.1"
-                return 1
-            fi
-            switch_version "sui-${version_input}-${DEFAULT_PLATFORM}-${DEFAULT_ARCH}"
-        else
-            echo "无效的选择"
-            return 1
-        fi
-    else
-        echo "无效的输入"
+      # 检查版本格式
+      if [[ ! "$version_input" =~ ^${target_env}-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        echo "版本格式不正确，应该类似: ${target_env}-v1.40.1"
         return 1
+      fi
+      switch_version "sui-${version_input}-${DEFAULT_PLATFORM}-${DEFAULT_ARCH}"
+    else
+      echo "无效的选择"
+      return 1
     fi
+  else
+    echo "无效的输入"
+    return 1
+  fi
 }
 
 ################################################################################
 # 清理备份
 ################################################################################
 function clean_backups() {
-    echo "=== 清理备份 ==="
+  echo "=== 清理备份 ==="
 
-    # 检查备份目录是否存在
-    if [[ ! -d "$SUI_BACKUP_DIR" ]]; then
-        echo "未找到备份目录"
-        return 0
+  # 检查备份目录是否存在
+  if [[ ! -d "$SUI_BACKUP_DIR" ]]; then
+    echo "未找到备份目录"
+    return 0
+  fi
+
+  # 获取当前版本信息
+  local current_env=""
+  local current_version=""
+  local info_file="${SUI_INSTALL_DIR}/.version_info"
+  if [[ -f "$info_file" ]]; then
+    source "$info_file"
+    current_env="$environment"
+    current_version="v$version"
+  fi
+
+  # 获取所有备份，按环境分组
+  local mainnet_backups=()
+  local testnet_backups=()
+  local devnet_backups=()
+
+  while IFS= read -r backup_dir; do
+    local backup_name=$(basename "$backup_dir")
+    if [[ "$backup_name" == *"mainnet"* ]]; then
+      mainnet_backups+=("$backup_name")
+    elif [[ "$backup_name" == *"testnet"* ]]; then
+      testnet_backups+=("$backup_name")
+    elif [[ "$backup_name" == *"devnet"* ]]; then
+      devnet_backups+=("$backup_name")
+    fi
+  done < <(find "$SUI_BACKUP_DIR" -maxdepth 1 -mindepth 1 -type d)
+
+  # 定义一个函数来比较版本号
+  function version_gt() {
+    local v1=$(echo "$1" | grep -oP 'v\K[\d\.]+')
+    local v2=$(echo "$2" | grep -oP 'v\K[\d\.]+')
+    if [[ "$(printf '%s\n' "$v1" "$v2" | sort -V | tail -n 1)" == "$v1" ]]; then
+      return 0
+    else
+      return 1
+    fi
+  }
+
+  # 定义一个函数来分析每个环境的备份（不执行删除）
+  function analyze_env_backups() {
+    local env="$1"
+    shift
+    local -a backups=("$@")
+    local -a to_delete=()
+    local latest=""
+    local current=""
+
+    if [[ ${#backups[@]} -le 1 ]]; then
+      return
     fi
 
-    # 获取当前版本信息
-    local current_env=""
-    local current_version=""
-    local info_file="${SUI_INSTALL_DIR}/.version_info"
-    if [[ -f "$info_file" ]]; then
-        source "$info_file"
-        current_env="$environment"
-        current_version="v$version"
+    # 找出最新版本
+    for backup in "${backups[@]}"; do
+      if [[ -z "$latest" ]] || version_gt "$backup" "$latest"; then
+        latest="$backup"
+      fi
+      # 检查是否为当前使用的版本
+      if [[ -n "$current_env" && "$current_env" == "$env" &&
+        "$backup" == *"${current_env}-${current_version}"* ]]; then
+        current="$backup"
+      fi
+    done
+
+    # 收集要删除的版本
+    for backup in "${backups[@]}"; do
+      if [[ "$backup" != "$latest" && "$backup" != "$current" ]]; then
+        to_delete+=("$backup")
+      fi
+    done
+
+    # 输出分析结果
+    if [[ -n "$latest" ]]; then
+      echo "- ${env} 环境最新版本 (将保留): $latest"
     fi
-
-    # 获取所有备份，按环境分组
-    local mainnet_backups=()
-    local testnet_backups=()
-    local devnet_backups=()
-
-    while IFS= read -r backup_dir; do
-        local backup_name=$(basename "$backup_dir")
-        if [[ "$backup_name" == *"mainnet"* ]]; then
-            mainnet_backups+=("$backup_name")
-        elif [[ "$backup_name" == *"testnet"* ]]; then
-            testnet_backups+=("$backup_name")
-        elif [[ "$backup_name" == *"devnet"* ]]; then
-            devnet_backups+=("$backup_name")
-        fi
-    done < <(find "$SUI_BACKUP_DIR" -maxdepth 1 -mindepth 1 -type d)
-
-    # 定义一个函数来比较版本号
-    function version_gt() {
-        local v1=$(echo "$1" | grep -oP 'v\K[\d\.]+')
-        local v2=$(echo "$2" | grep -oP 'v\K[\d\.]+')
-        if [[ "$(printf '%s\n' "$v1" "$v2" | sort -V | tail -n 1)" == "$v1" ]]; then
-            return 0
-        else
-            return 1
-        fi
-    }
-
-    # 定义一个函数来分析每个环境的备份（不执行删除）
-    function analyze_env_backups() {
-        local env="$1"
-        shift
-        local -a backups=("$@")
-        local -a to_delete=()
-        local latest=""
-        local current=""
-
-        if [[ ${#backups[@]} -le 1 ]]; then
-            return
-        fi
-
-        # 找出最新版本
-        for backup in "${backups[@]}"; do
-            if [[ -z "$latest" ]] || version_gt "$backup" "$latest"; then
-                latest="$backup"
-            fi
-            # 检查是否为当前使用的版本
-            if [[ -n "$current_env" && "$current_env" == "$env" && \
-                  "$backup" == *"${current_env}-${current_version}"* ]]; then
-                current="$backup"
-            fi
-        done
-
-        # 收集要删除的版本
-        for backup in "${backups[@]}"; do
-            if [[ "$backup" != "$latest" && "$backup" != "$current" ]]; then
-                to_delete+=("$backup")
-            fi
-        done
-
-        # 输出分析结果
-        if [[ -n "$latest" ]]; then
-            echo "- ${env} 环境最新版本 (将保留): $latest"
-        fi
-        if [[ -n "$current" && "$current" != "$latest" ]]; then
-            echo "- ${env} 环境当前使用版本 (将保留): $current"
-        fi
-        if [[ ${#to_delete[@]} -gt 0 ]]; then
-            echo "- ${env} 环境将删除的版本:"
-            for backup in "${to_delete[@]}"; do
-                echo "  * $backup"
-            done
-        fi
-        echo ""
-    }
-
-    # 先显示预计的清理结果
-    echo -e "\n清理预览:"
-    echo "----------------------------------------"
-    if [[ -n "$current_env" && -n "$current_version" ]]; then
-        echo "当前使用的版本: ${current_env}-${current_version}"
+    if [[ -n "$current" && "$current" != "$latest" ]]; then
+      echo "- ${env} 环境当前使用版本 (将保留): $current"
+    fi
+    if [[ ${#to_delete[@]} -gt 0 ]]; then
+      echo "- ${env} 环境将删除的版本:"
+      for backup in "${to_delete[@]}"; do
+        echo "  * $backup"
+      done
     fi
     echo ""
+  }
 
-    if [[ ${#mainnet_backups[@]} -gt 0 ]]; then
-        analyze_env_backups "mainnet" "${mainnet_backups[@]}"
-    fi
-    if [[ ${#testnet_backups[@]} -gt 0 ]]; then
-        analyze_env_backups "testnet" "${testnet_backups[@]}"
-    fi
-    if [[ ${#devnet_backups[@]} -gt 0 ]]; then
-        analyze_env_backups "devnet" "${devnet_backups[@]}"
-    fi
-    echo "----------------------------------------"
+  # 先显示预计的清理结果
+  echo -e "\n清理预览:"
+  echo "----------------------------------------"
+  if [[ -n "$current_env" && -n "$current_version" ]]; then
+    echo "当前使用的版本: ${current_env}-${current_version}"
+  fi
+  echo ""
 
-    # 询问用户是否继续
-    read -p "确认执行以上清理操作? (y/N): " confirm
-    if [[ ! "$confirm" =~ ^[Yy] ]]; then
-        echo "已取消清理操作"
-        return 0
-    fi
+  if [[ ${#mainnet_backups[@]} -gt 0 ]]; then
+    analyze_env_backups "mainnet" "${mainnet_backups[@]}"
+  fi
+  if [[ ${#testnet_backups[@]} -gt 0 ]]; then
+    analyze_env_backups "testnet" "${testnet_backups[@]}"
+  fi
+  if [[ ${#devnet_backups[@]} -gt 0 ]]; then
+    analyze_env_backups "devnet" "${devnet_backups[@]}"
+  fi
+  echo "----------------------------------------"
 
-    # 执行清理
-    echo -e "\n开始执行清理..."
-    function clean_env_backups() {
-        local env="$1"
-        shift
-        local -a backups=("$@")
-        local latest=""
-        local current=""
+  # 询问用户是否继续
+  read -p "确认执行以上清理操作? (y/N): " confirm
+  if [[ ! "$confirm" =~ ^[Yy] ]]; then
+    echo "已取消清理操作"
+    return 0
+  fi
 
-        if [[ ${#backups[@]} -le 1 ]]; then
-            return
-        fi
+  # 执行清理
+  echo -e "\n开始执行清理..."
+  function clean_env_backups() {
+    local env="$1"
+    shift
+    local -a backups=("$@")
+    local latest=""
+    local current=""
 
-        # 找出最新版本和当前版本
-        for backup in "${backups[@]}"; do
-            if [[ -z "$latest" ]] || version_gt "$backup" "$latest"; then
-                latest="$backup"
-            fi
-            if [[ -n "$current_env" && "$current_env" == "$env" && \
-                  "$backup" == *"${current_env}-${current_version}"* ]]; then
-                current="$backup"
-            fi
-        done
-
-        # 删除其他版本
-        for backup in "${backups[@]}"; do
-            if [[ "$backup" != "$latest" && "$backup" != "$current" ]]; then
-                echo "删除: $backup"
-                rm -rf "${SUI_BACKUP_DIR}/$backup"
-            fi
-        done
-    }
-
-    # 执行实际的清理操作
-    if [[ ${#mainnet_backups[@]} -gt 0 ]]; then
-        clean_env_backups "mainnet" "${mainnet_backups[@]}"
-    fi
-    if [[ ${#testnet_backups[@]} -gt 0 ]]; then
-        clean_env_backups "testnet" "${testnet_backups[@]}"
-    fi
-    if [[ ${#devnet_backups[@]} -gt 0 ]]; then
-        clean_env_backups "devnet" "${devnet_backups[@]}"
+    if [[ ${#backups[@]} -le 1 ]]; then
+      return
     fi
 
-    echo -e "\n清理完成。备份文件位于: ${SUI_BACKUP_DIR}"
-    echo "如需手动管理备份，可以直接访问该目录"
-    echo -e "\n当前剩余备份:"
-    list_backups
+    # 找出最新版本和当前版本
+    for backup in "${backups[@]}"; do
+      if [[ -z "$latest" ]] || version_gt "$backup" "$latest"; then
+        latest="$backup"
+      fi
+      if [[ -n "$current_env" && "$current_env" == "$env" &&
+        "$backup" == *"${current_env}-${current_version}"* ]]; then
+        current="$backup"
+      fi
+    done
+
+    # 删除其他版本
+    for backup in "${backups[@]}"; do
+      if [[ "$backup" != "$latest" && "$backup" != "$current" ]]; then
+        echo "删除: $backup"
+        rm -rf "${SUI_BACKUP_DIR}/$backup"
+      fi
+    done
+  }
+
+  # 执行实际的清理操作
+  if [[ ${#mainnet_backups[@]} -gt 0 ]]; then
+    clean_env_backups "mainnet" "${mainnet_backups[@]}"
+  fi
+  if [[ ${#testnet_backups[@]} -gt 0 ]]; then
+    clean_env_backups "testnet" "${testnet_backups[@]}"
+  fi
+  if [[ ${#devnet_backups[@]} -gt 0 ]]; then
+    clean_env_backups "devnet" "${devnet_backups[@]}"
+  fi
+
+  echo "✓ 清理完成"
+  list_backups
 }
 
 ################################################################################
 # 交互式备份清理
 ################################################################################
 function interactive_clean() {
-    echo "将为每个环境保留最新版本的备份..."
-    clean_backups
+  echo "将为每个环境保留最新版本的备份..."
+  clean_backups
 }
 
 ################################################################################
@@ -1061,29 +993,29 @@ function main() {
 
   if [[ "$is_interactive" == "true" ]]; then
     case "$ACTION" in
-      install)
-        interactive_install
-        ;;
-      update)
-        interactive_update
-        ;;
-      uninstall)
-        interactive_uninstall
-        ;;
-      switch)
-        interactive_switch
-        ;;
-      list)
-        get_current_version_info
-        echo ""
-        list_backups
-        ;;
-      clean)
-        clean_backups
-        ;;
-      *)
-        usage
-        ;;
+    install)
+      interactive_install
+      ;;
+    update)
+      interactive_update
+      ;;
+    uninstall)
+      interactive_uninstall
+      ;;
+    switch)
+      interactive_switch
+      ;;
+    list)
+      get_current_version_info
+      echo ""
+      list_backups
+      ;;
+    clean)
+      clean_backups
+      ;;
+    *)
+      usage
+      ;;
     esac
   else
     # 非交互模式
@@ -1093,33 +1025,32 @@ function main() {
     fi
 
     case "$ACTION" in
-      install)
-        install_sui
-        ;;
-      update)
-        update_sui
-        ;;
-      uninstall)
-        uninstall_sui
-        ;;
-      switch)
-        interactive_switch  # switch 命令总是交互式的
-        ;;
-      list)
-        get_current_version_info
-        echo ""
-        list_backups
-        ;;
-      clean)
-        clean_backups
-        ;;
-      *)
-        usage
-        ;;
+    install)
+      install_sui
+      ;;
+    update)
+      update_sui
+      ;;
+    uninstall)
+      uninstall_sui
+      ;;
+    switch)
+      interactive_switch # switch 命令总是交互式的
+      ;;
+    list)
+      get_current_version_info
+      echo ""
+      list_backups
+      ;;
+    clean)
+      clean_backups
+      ;;
+    *)
+      usage
+      ;;
     esac
   fi
 }
-
 
 # 入口
 main "$@"
