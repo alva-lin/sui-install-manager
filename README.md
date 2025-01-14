@@ -24,7 +24,7 @@
 
 ```bash
 # 克隆仓库
-git clone https://github.com/your-username/sui-install-manager.git
+git clone https://github.com/alva-lin/sui-install-manager.git
 cd sui-install-manager
 
 # 设置脚本执行权限
